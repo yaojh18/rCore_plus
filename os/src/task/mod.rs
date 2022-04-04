@@ -8,9 +8,15 @@ use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
 use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus,TaskSyscallTimes};
 
 pub use context::TaskContext;
+
+const SYSCALL_WRITE: usize = 64;
+const SYSCALL_EXIT: usize = 93;
+const SYSCALL_YIELD: usize = 124;
+const SYSCALL_GET_TIME: usize = 169;
+const SYSCALL_TASK_INFO: usize = 410;
 
 pub struct TaskManager {
     num_app: usize,
@@ -28,6 +34,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_sys: TaskSyscallTimes::zero_init(),
         }; MAX_APP_NUM];
         for (i, t) in tasks.iter_mut().enumerate().take(num_app) {
             t.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -46,10 +53,35 @@ lazy_static! {
 }
 
 impl TaskManager {
+    fn get_status(&self) -> TaskStatus {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let status=inner.tasks[current].task_status;
+        status
+    }
+    fn get_syscall_times(&self) -> TaskSyscallTimes{
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let times=inner.tasks[current].task_sys;
+        times
+    }
+    fn change_syscall_times(&self,id:usize){
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        match id {
+            SYSCALL_WRITE => inner.tasks[current].task_sys.write+=1,
+            SYSCALL_EXIT => inner.tasks[current].task_sys.exit+=1,
+            SYSCALL_YIELD => inner.tasks[current].task_sys.yld+=1,
+            SYSCALL_GET_TIME => inner.tasks[current].task_sys.get_time_of_day+=1,
+            SYSCALL_TASK_INFO => inner.tasks[current].task_sys.task_info+=1,
+            _ => panic!("Unsupported syscall_id: {}", id),
+        }
+    }
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
+        task0.task_sys=TaskSyscallTimes::zero_init();
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -116,6 +148,20 @@ fn mark_current_exited() {
     TASK_MANAGER.mark_current_exited();
 }
 
+fn get_status() -> TaskStatus{
+    let status=TASK_MANAGER.get_status();
+    status
+}
+
+fn get_syscall_times() -> TaskSyscallTimes{
+    let times=TASK_MANAGER.get_syscall_times();
+    times
+}
+
+fn change_syscall_times(id:usize){
+    TASK_MANAGER.change_syscall_times(id);
+}
+
 pub fn suspend_current_and_run_next() {
     mark_current_suspended();
     run_next_task();
@@ -124,4 +170,18 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+pub fn get_task_status() -> TaskStatus{
+    let status=get_status();
+    status
+}
+
+pub fn get_task_syscall_times() -> TaskSyscallTimes{
+    let times=get_syscall_times();
+    times
+}
+
+pub fn change_task_syscall_times(id:usize){
+    change_syscall_times(id);
 }
