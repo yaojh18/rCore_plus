@@ -64,11 +64,6 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
 // YOUR JOB: Finish sys_task_info to pass testcases
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    //let us = get_time_us();
-    //let ts=TimeVal{
-    //    sec:us/1_000_000;
-    //    usec:us%1_000_000;
-    //}
     let sys = get_task_syscall_times();
     unsafe {
         (*ti).syscall_times[SYSCALL_GETTIMEOFDAY]=sys.get_time_of_day as u32; 
@@ -79,6 +74,5 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
         (*ti).time=get_time_us()/1000;
         (*ti).status=get_task_status();
     }
-    //drop(ts);
     0
 }
