@@ -9,9 +9,18 @@
 
 # 2.问答题
 ## 1.
-* 对于使用 S 态特权指令的测例ch2b\_bad\_instructions.rs和ch2b\_bad\_registers.rs报错信息如下：
+* 对于使用 S 态特权指令的测例ch2b\_bad\_instructions.rs(sret)和ch2b\_bad\_registers.rs(csrr)报错信息如下：
 
 ```
+[ERROR] [kernel] IllegalInstruction in application, core dumped.
+...
+[ERROR] [kernel] IllegalInstruction in application, core dumped.
+```
+
+* 对于访问错误地址的测例ch2b\_bad\_address.rs报错信息如下：
+
+```
+[ERROR] [kernel] PageFault in application, bad addr = 0x0, bad instruction = 0x8040008a, core dumped.
 ```
 
 * 使用的sbi为：RustSBI version 0.2.0-alpha.4
