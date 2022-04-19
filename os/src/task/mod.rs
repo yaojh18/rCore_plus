@@ -15,14 +15,24 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{VirtAddr, MapPermission};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
 pub use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus,TaskSyscallTimes};
 
 pub use context::TaskContext;
+
+const SYSCALL_WRITE: usize = 64;
+const SYSCALL_EXIT: usize = 93;
+const SYSCALL_YIELD: usize = 124;
+const SYSCALL_GET_TIME: usize = 169;
+const SYSCALL_MUNMAP: usize = 215;
+const SYSCALL_MMAP: usize = 222;
+const SYSCALL_SET_PRIORITY: usize = 140;
+const SYSCALL_TASK_INFO: usize = 410;
 
 /// The task manager, where all the tasks are managed.
 ///
@@ -75,6 +85,33 @@ impl TaskManager {
     ///
     /// Generally, the first task in task list is an idle task (we call it zero process later).
     /// But in ch4, we load apps statically, so the first task is a real app.
+    fn get_status(&self) -> TaskStatus {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let status=inner.tasks[current].task_status;
+        status
+    }
+    fn get_syscall_times(&self) -> TaskSyscallTimes{
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let times=inner.tasks[current].task_sys;
+        times
+    }
+    fn change_syscall_times(&self,id:usize){
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        match id {
+            SYSCALL_WRITE => inner.tasks[current].task_sys.write+=1,
+            SYSCALL_EXIT => inner.tasks[current].task_sys.exit+=1,
+            SYSCALL_YIELD => inner.tasks[current].task_sys.yld+=1,
+            SYSCALL_GET_TIME => inner.tasks[current].task_sys.get_time_of_day+=1,
+            SYSCALL_TASK_INFO => inner.tasks[current].task_sys.task_info+=1,
+            SYSCALL_MMAP=>inner.tasks[current].task_sys.mmap+=1,
+            SYSCALL_MUNMAP=>inner.tasks[current].task_sys.munmap+=1,
+            SYSCALL_SET_PRIORITY=>inner.tasks[current].task_sys.priority+=1,
+            _ => panic!("Unsupported syscall_id: {}", id),
+        }
+    }
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
         let next_task = &mut inner.tasks[0];
@@ -147,6 +184,26 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+    pub fn insert_area(&self,start_va: VirtAddr,end_va: VirtAddr,permission: MapPermission){
+        let mut inner=self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.insert_framed_area(start_va, end_va, permission);
+    }
+    pub fn in_page_table(&self,start:usize)->bool{
+        let va=VirtAddr::from(start);
+        let vpn=va.floor();
+        let inner=self.inner.exclusive_access();
+        let current = inner.current_task;
+        let ppn_op=inner.tasks[current].memory_set.translate(vpn);
+        if ppn_op.is_none(){
+            return false;
+        }
+        let ppn=ppn_op.unwrap().ppn();
+        if ppn.0==0{
+            return false;
+        }
+        true
+    }
 }
 
 /// Run the first task in task list.
@@ -190,4 +247,24 @@ pub fn current_user_token() -> usize {
 /// Get the current 'Running' task's trap contexts.
 pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
+}
+
+pub fn insert_task_area(start_va: VirtAddr,end_va: VirtAddr,permission: MapPermission){
+    TASK_MANAGER.insert_area(start_va, end_va, permission);
+}
+
+pub fn in_task_page_table(start_va:usize)->bool{
+    TASK_MANAGER.in_page_table(start_va)
+}
+
+pub fn get_task_status()->TaskStatus{
+    TASK_MANAGER.get_status()
+}
+
+pub fn get_task_syscall_times() -> TaskSyscallTimes{
+    TASK_MANAGER.get_syscall_times()
+}
+
+pub fn change_task_syscall_times(id:usize){
+    TASK_MANAGER.change_syscall_times(id);
 }

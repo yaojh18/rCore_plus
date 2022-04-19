@@ -4,6 +4,34 @@ use crate::config::{kernel_stack_position, TRAP_CONTEXT};
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::trap::{trap_handler, TrapContext};
 
+#[derive(Copy, Clone)]
+pub struct TaskSyscallTimes{
+    pub get_time_of_day:usize,
+    pub task_info:usize,
+    pub write:usize,
+    pub yld:usize,
+    pub exit:usize,
+    pub mmap:usize,
+    pub munmap:usize,
+    pub priority:usize,
+}
+
+
+impl TaskSyscallTimes {
+    pub fn zero_init() -> Self{
+        Self {
+            get_time_of_day:0,
+            task_info:0,
+            write:0,
+            yld:0,
+            exit:0,
+            mmap:0,
+            munmap:0,
+            priority:0,
+        }
+    }   
+}
+
 /// task control block structure
 pub struct TaskControlBlock {
     pub task_status: TaskStatus,
@@ -11,6 +39,7 @@ pub struct TaskControlBlock {
     pub memory_set: MemorySet,
     pub trap_cx_ppn: PhysPageNum,
     pub base_size: usize,
+    pub task_sys: TaskSyscallTimes,
 }
 
 impl TaskControlBlock {
@@ -41,6 +70,7 @@ impl TaskControlBlock {
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,
+            task_sys:TaskSyscallTimes::zero_init()
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
@@ -58,6 +88,7 @@ impl TaskControlBlock {
 #[derive(Copy, Clone, PartialEq)]
 /// task status: UnInit, Ready, Running, Exited
 pub enum TaskStatus {
+    UnInit,
     Ready,
     Running,
     Exited,

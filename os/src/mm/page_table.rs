@@ -1,6 +1,6 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
-use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum,PhysAddr};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
@@ -131,6 +131,16 @@ impl PageTable {
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
     }
+}
+
+pub fn translated_any<T>(token: usize,ptr:*mut T)->*mut T{
+    let page_table=PageTable::from_token(token);
+    let start=ptr as usize;
+    let start_va=VirtAddr::from(start);
+    let vpn=start_va.floor();
+    let ppn=page_table.translate(vpn).unwrap().ppn();
+    let n_ptr=PhysAddr::from(ppn).0+start_va.page_offset();
+    n_ptr as *mut T
 }
 
 /// translate a pointer to a mutable u8 Vec through page table
