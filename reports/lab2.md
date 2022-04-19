@@ -1,31 +1,35 @@
 # lab3实验报告
 肖泽基 2019011241
 # 1.实验内容
-* 增加TaskSyscallTimes类，用于记录系统调用次数，并在TaskControlBlock内增加对应成员task\_sys
-* 在task模块中增加函数get\_task\_status，用于获得当前程序的运行状态
-* 在task模块中增加函数get\_task\_syscall\_times，用于获得当前程序各系统调用次数
-* 在task模块中增加函数change\_task\_syscall\_times，用于在发生系统调用时记录其次数
-* 在以上修改的基础上，实现了系统调用处理函数sys\_task\_info
+* 增加translated_any函数，用于在用户空间和内核空间之间进行指针转换
+* 在task模块中增加函数in\_task\_page\_table，用于检查某一个虚拟地址是否存在
+* 在task模块中增加函数insert\_task\_area，用于申请新的地址段
+* 使得syscall模块的process能够调用PageTable和MemoryArea
+* 在以上修改的基础上，重写了sys\_get\_time和sys\_task\_info函数，实现了sys\_mmap和sys\_munmap函数
 
 # 2.问答题
 ## 1.
-* 对于使用 S 态特权指令的测例ch2b\_bad\_instructions.rs(sret)和ch2b\_bad\_registers.rs(csrr)报错信息如下：
-
-```
-[ERROR] [kernel] IllegalInstruction in application, core dumped.
-...
-[ERROR] [kernel] IllegalInstruction in application, core dumped.
-```
-
-* 对于访问错误地址的测例ch2b\_bad\_address.rs报错信息如下：
-
-```
-[ERROR] [kernel] PageFault in application, bad addr = 0x0, bad instruction = 0x8040008a, core dumped.
-```
-
-* 使用的sbi为：RustSBI version 0.2.0-alpha.4
+* 第0～9位是标志位，10～53位是物理页地址（PPN），54～63位为保留字段
+* 标志位作用如下：
+	* V：0位，表示页表项是否合法
+	* R：1位，表示索引到该页表项的虚拟页面是否可读
+	* W：2位，表示索引到该页表项的虚拟页面是否可写
+	* X：3位，表示索引到该页表项的虚拟页面是否可执行
+	* U：4位，表示用户态的程序是否可以通过该页表项映射
+	* G：5位，表示该页表项是否为全局的，即所有页表是否都包含该项
+	* A：6位，表示自上次A清零后该页表项是否被虚拟地址用来读写或取址
+	* D：7位，表示自上次D清零后是否有虚拟地址通过该页表项写入
 
 ## 2.
-* 初始时，执行指令位于0x1000，随后跳转到0x8000\_0000，即rustsbi的start，然后跳转到rustsbi的rust\_main函数
-* 在rust\_main中，通过调用delegate\_interrupt\_exception和set\_tmp进行委托终端和权限设置
-* 最后，通过execute_supervisor进入0x8020\_0000
+* 在执行指令时发生指令缺页异常；存储时发生store/AMO缺页异常；读取内存时发生load缺页异常
+* sstatus的SPP字段会修改为U态；sepc会修改为发生异常的指令地址；scause会修改为缺页异常的异常号；stval会修改为出现缺页异常的虚拟地址；sscratch记录内核栈的地址
+* Lazy策略使得在程序执行过程中没有访问到的页面不会从磁盘中被载入内存，节省了内存的空间
+* $$\frac{10G}{512}=20M$$
+* 初始时不建立页表和分配内存，只要记录地址空间，在用户第一次访问某个页面时会发生缺页异常，此时再建立对应的页表并申请物理空间
+* 标志位V为0
+
+## 3.
+* 内核态与用户态转换时无需更换页表，只要切换用户态与内核态即可；不同程序切换时，通过ch3中切换上下文的方法即可切换页表
+* 将内核页面页表项标志位U设为0，即可表示用户态程序是否可以访问对应页面
+* 不需要跳板；内核态与用户态转换无需更换页表，效率会更高
+* 双页表在用户态和内核态切换和用户程序切换时都需要切换页表；单页表之需要在用户程序切换时更换页表

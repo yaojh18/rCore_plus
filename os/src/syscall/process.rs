@@ -1,11 +1,9 @@
 //! Process management syscalls
 
-use core::ptr::null_mut;
-
 use crate::config::{MAX_SYSCALL_NUM,PAGE_SIZE};
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next,current_user_token,insert_task_area,in_task_page_table, TaskStatus,TaskSyscallTimes,get_task_status,get_task_syscall_times};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next,current_user_token,insert_task_area,in_task_page_table, TaskStatus,get_task_status,get_task_syscall_times};
 use crate::timer::get_time_us;
-use crate::mm::{translated_any, PhysPageNum, VirtAddr, VirtPageNum, PhysAddr, MapArea,MapType,MapPermission,PageTable};
+use crate::mm::{translated_any, VirtAddr, MapArea,MapType,MapPermission,PageTable};
 
 const SYSCALL_WRITE: usize = 64;
 const SYSCALL_EXIT: usize = 93;
@@ -45,44 +43,6 @@ pub fn sys_yield() -> isize {
 // YOUR JOB: 引入虚地址后重写 sys_get_time
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     let _us = get_time_us();
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
-    /*
-    let start=_ts as *const u8;
-    let len=8 as usize;
-    //let buffers = translated_byte_buffer(current_user_token(), start, len);
-    let tv=TimeVal{
-        sec:_us/1_000_000,
-        usec:_us%1_000_000,
-    };
-    let n_ptr=&tv as *const TimeVal;
-    let mut ptr=n_ptr as *mut usize;
-    unsafe{
-    info!("{}",*ptr);
-    }
-    unsafe{
-        info!("{}",*((ptr as usize - 4) as *mut usize));
-    }
-    info!("sec{}",tv.sec);
-    info!("usec{}",tv.usec);
-    
-    for buffer in buffers{
-        info!("begin{}",n_ptr as u8);
-        for j in 0..buffer.len(){
-            info!("mid{}",ptr as u8);
-            unsafe{
-                buffer[j]=*ptr;
-            }
-            ptr=(ptr as u8 - 1) as *mut u8;
-            info!("end{}",ptr as u8);
-        }
-    }
-    */
-    
     let n_ptr=translated_any::<TimeVal>(current_user_token(),_ts);
     unsafe {
         *n_ptr=TimeVal{
