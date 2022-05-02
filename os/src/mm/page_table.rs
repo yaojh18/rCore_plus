@@ -196,3 +196,13 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .unwrap()
         .get_mut()
 }
+
+pub fn translated_any<T>(token: usize,ptr:*mut T)->*mut T{
+    let page_table=PageTable::from_token(token);
+    let start=ptr as usize;
+    let start_va=VirtAddr::from(start);
+    let vpn=start_va.floor();
+    let ppn=page_table.translate(vpn).unwrap().ppn();
+    let n_ptr=PhysAddr::from(ppn).0+start_va.page_offset();
+    n_ptr as *mut T
+}
