@@ -208,4 +208,115 @@ impl Inode {
         });
         block_cache_sync_all();
     }
+
+    pub fn get_nlink(&self,inode_id:u32)->u32{
+        self.read_disk_inode(|disk_inode|->u32 {
+            let mut sum=0;
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+            for i in 0..file_count {
+                let mut dirent = DirEntry::empty();
+                assert_eq!(
+                    disk_inode.read_at(
+                        i * DIRENT_SZ,
+                        dirent.as_bytes_mut(),
+                        &self.block_device,
+                    ),
+                    DIRENT_SZ,
+                );
+                if dirent.inode_number()==inode_id{
+                    sum+=1;
+                }
+            }
+            sum
+        })
+    }
+
+    pub fn link(&self,old_name:&str,new_name:&str)-> bool {
+        let mut fs = self.fs.lock();
+        if let Some(inode_id)=self.modify_disk_inode(|root_inode| {
+            // assert it is a directory
+            assert!(root_inode.is_dir());
+            // has the file been created?
+            self.find_inode_id(old_name, root_inode)
+        }){
+            self.modify_disk_inode(|root_inode| {
+                // append file in the dirent
+                let file_count = (root_inode.size as usize) / DIRENT_SZ;
+                let new_size = (file_count + 1) * DIRENT_SZ;
+                // increase size
+                self.increase_size(new_size as u32, root_inode, &mut fs);
+                // write dirent
+                let dirent = DirEntry::new(new_name, inode_id);
+                root_inode.write_at(
+                    file_count * DIRENT_SZ,
+                    dirent.as_bytes(),
+                    &self.block_device,
+                );
+            });
+            block_cache_sync_all();
+            true
+        }else{
+            false
+        }
+    }
+
+    pub fn unlink(&self,name:&str)->bool{
+        self.modify_disk_inode(|disk_inode|->bool{
+            let file_count = (disk_inode.size as usize) / DIRENT_SZ;
+            for i in 0..file_count {
+                let mut dirent = DirEntry::empty();
+                assert_eq!(
+                    disk_inode.read_at(
+                        i * DIRENT_SZ,
+                        dirent.as_bytes_mut(),
+                        &self.block_device,
+                    ),
+                    DIRENT_SZ,
+                );
+                if dirent.name()==name{
+                    if i==file_count-1{
+                        let empty_dirent = DirEntry::empty();
+                        disk_inode.write_at(
+                            i*DIRENT_SZ,
+                            empty_dirent.as_bytes(),
+                            &self.block_device,
+                        );
+                    }else{
+                        let mut new_dirent = DirEntry::empty();
+                        disk_inode.read_at(
+                            (file_count-1)* DIRENT_SZ,
+                            new_dirent.as_bytes_mut(),
+                            &self.block_device,
+                        );
+                        disk_inode.write_at(
+                            i*DIRENT_SZ,
+                            new_dirent.as_bytes(),
+                            &self.block_device,
+                        );
+                        let empty_dirent = DirEntry::empty();
+                        disk_inode.write_at(
+                            (file_count-1)*DIRENT_SZ,
+                            empty_dirent.as_bytes(),
+                            &self.block_device,
+                        );
+                    }
+                    disk_inode.size-=DIRENT_SZ as u32;
+                    return true;
+                }
+            }
+            false
+        })
+    }
+
+    pub fn get_inode_id(&self)->u64{
+        self.fs.lock().get_inode_id(self.block_id as u32,self.block_offset) as u64
+    }
+
+    pub fn get_mode(&self)->u32{
+        self.read_disk_inode(|disk_inode|->u32{
+            if disk_inode.is_dir(){return 0o040000;}
+            if disk_inode.is_file(){return 0o100000;}
+            0
+        })
+    }
 }

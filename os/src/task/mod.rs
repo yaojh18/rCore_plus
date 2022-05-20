@@ -27,13 +27,13 @@ use crate::config::PAGE_SIZE;
 use crate::timer::get_time_us;
 pub use crate::syscall::process::TaskInfo;
 use crate::fs::{open_file, OpenFlags};
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus,TaskSyscallTimes};
 
 pub use context::TaskContext;
 pub use manager::add_task;
 pub use pid::{pid_alloc, KernelStack, PidHandle};
 pub use processor::{
-    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
+    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,get_task_status,get_task_syscall_times,get_task_begin_time,change_task_syscall_times,in_task_page_table,insert_task_area,change_task_priority,
 };
 
 /// Make current task suspended and switch to the next task

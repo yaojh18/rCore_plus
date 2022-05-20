@@ -9,6 +9,8 @@ use lazy_static::*;
 use bitflags::*;
 use alloc::vec::Vec;
 use super::File;
+use super::Stat;
+use super::StatMode;
 use crate::mm::UserBuffer;
 
 /// A wrapper around a filesystem inode
@@ -139,6 +141,26 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     }
 }
 
+pub fn link_file(old_name:&str,new_name:&str)->bool {
+    if old_name==new_name{
+        return false;
+    }
+    ROOT_INODE.link(old_name,new_name)
+}
+
+pub fn unlink_file(name:&str)->bool{
+    if let Some(inode) = ROOT_INODE.find(name) {
+        let inode_id=inode.get_inode_id();
+        let nlink=ROOT_INODE.get_nlink(inode_id as u32);
+        if nlink==1{
+            inode.clear();
+        }
+        ROOT_INODE.unlink(name)
+    }else{
+        false
+    }
+}
+
 impl File for OSInode {
     fn readable(&self) -> bool { self.readable }
     fn writable(&self) -> bool { self.writable }
@@ -165,5 +187,11 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
+    }
+    fn get_stat(&self) -> Stat {
+        let inner=self.inner.exclusive_access();
+        let inode=&inner.inode;
+        let inode_id=inode.get_inode_id();
+        Stat { dev: (0), ino: (inode_id), mode: (StatMode { bits: (inode.get_mode()) }), nlink: (ROOT_INODE.get_nlink(inode_id as u32)), pad: ([0;7]) }
     }
 }
