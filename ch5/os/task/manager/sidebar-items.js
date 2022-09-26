@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["BIG_STRIDE",""]],"fn":[["add_task",""],["fetch_task",""]],"struct":[["TASK_MANAGER","TASK_MANAGER instance through lazy_static!"],["TaskManager",""]]});
