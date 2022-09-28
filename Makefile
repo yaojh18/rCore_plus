@@ -1,4 +1,4 @@
-DOCKER_NAME ?= dinghao188/rcore-tutorial
+DOCKER_NAME ?= cydiater/osdev
 .PHONY: docker build_docker
 
 docker:
